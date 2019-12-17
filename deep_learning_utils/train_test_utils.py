@@ -61,26 +61,20 @@ def train_transformer(
 
         model, tokenizer = dlu.transfomer_model_utils.get_model_and_tokenizer("DistilBERT")
 
-        train_texts = ["This movie is brilliant.", "This movie is mediocre."]
-        train_labels = [1, 0]
-        token_IDs_train = dlu.transfomer_model_utils.tokenize_texts(train_texts, tokenizer)
-        train_data = dlu.data_utils.SequenceDataWithLabels(token_IDs_train, train_labels)
-        train_iter = torch.utils.data.DataLoader(
-            train_data, batch_size=64, shuffle=False,
-            collate_fn=dlu.data_utils.zip_and_collate
-        )
+        train_texts = ["This movie is brilliant.", "This movie is mediocre.", "Great"]
+        train_labels = [1, 0, 1]
+        train_iter = dlu.data_utils.create_data_iter(train_texts, train_labels, tokenizer)
 
         test_texts = ["Just so-so.", "Best I have every seen."]
         test_labels = [0, 1]
-        token_IDs_test = dlu.transfomer_model_utils.tokenize_texts(test_texts, tokenizer)
-        test_data = dlu.data_utils.pad_and_mask(token_IDs_test, labels=test_labels)
+        test_data = dlu.data_utils.pack_texts_and_labels(test_texts, test_labels, tokenizer)
 
         class TextClassifier(torch.nn.Module):
             def __init__(self, transformer):
                 super().__init__()
                 self.transformer = transformer
                 self.classifier = torch.nn.Sequential(
-                    torch.nn.Linear(768, 256),
+                    torch.nn.Linear(list(transformer.parameters())[-1].numel(), 256),
                     torch.nn.Dropout(0.2),
                     torch.nn.Linear(256, 2)
                 )
@@ -98,7 +92,7 @@ def train_transformer(
             train_iter, model=clf, loss_fn=torch.nn.CrossEntropyLoss(),
             optimizer=optimizer,
             device='cpu',
-            num_epochs=2,
+            num_epochs=4,
             test_data=test_data,
             verbose_each_batch=True)
 

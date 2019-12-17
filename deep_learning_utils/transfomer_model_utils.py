@@ -6,7 +6,7 @@ from typeguard import typechecked
 @typechecked
 def get_model_and_tokenizer(
         model_type: str, pretrained_name: Optional[str] = None
-        ):
+    ):
     """
     Get pre-trained transfomer model and tokenizer.
 

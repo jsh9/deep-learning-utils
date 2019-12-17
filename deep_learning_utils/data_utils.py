@@ -1,9 +1,11 @@
-from typing import List, Tuple, Dict, Optional, Iterable, Any
+from typing import List, Tuple, Dict, Optional, Iterable, Any, Callable
 
 import torch
 import numpy as np
-
+import transformers
 from typeguard import typechecked # https://pypi.org/project/typeguard/
+
+from . import transfomer_model_utils
 
 #%%----------------------------------------------------------------------------
 class SequenceDataWithLabels(torch.utils.data.Dataset):
@@ -29,7 +31,7 @@ class SequenceDataWithLabels(torch.utils.data.Dataset):
             self,
             token_IDs: Iterable[Iterable[int]],
             labels: Optional[Iterable[int]] = None
-            ):
+        ):
         _check_length(token_IDs, labels)
         if labels is None:
             labels = [-1] * len(token_IDs)
@@ -81,7 +83,7 @@ def zip_and_collate(token_IDs_with_labels: List[Tuple[List[int], int]]):
 #%%----------------------------------------------------------------------------
 @typechecked
 def pad_and_mask(token_IDs: Iterable[Iterable[int]], *,
-                  labels: Optional[Iterable[int]] = None) -> Dict:
+                  labels: Optional[Iterable[int]] = None) -> Dict[str, Any]:
     """
     Pads ``token_IDs`` to have the same length (with 0's), calculates the masks
     (i.e., use 1 to represent non-padded IDs and use 0 to represent padded
@@ -163,3 +165,64 @@ def _check_length(token_IDs: Iterable[Any], labels: Optional[Iterable[Any]]):
     if labels is not None and len(token_IDs) != len(labels):
         raise ValueError("`token_IDs` and `labels` must have the same length.")
     # END IF
+
+#%%----------------------------------------------------------------------------
+@typechecked
+def create_data_iter(
+        texts: Iterable[str],
+        labels: Iterable[int],
+        tokenizer: transformers.PreTrainedTokenizer,
+        batch_size: int = 128,
+        shuffle: bool = False,
+        collate_fn: Callable = zip_and_collate,
+        **other_kwargs_to_DataLoader
+    ) -> torch.utils.data.DataLoader:
+    """
+    Create a data iteration object to do training.
+
+    Parameters
+    ----------
+    texts : Iterable[str]
+        Texts to train. For example: ``["Hello world", "Good morning"]``.
+    labels : Iterable[int]
+        Labels of each sentence in ``texts``.
+    tokenizer : transformers.PreTrainedTokenizer
+        The tokenizer to tokenize ``texts``.
+    batch_size : int, optional
+        The batch size for training. The default is 128.
+    shuffle : bool, optional
+        Whether to re-shuffle the data at every epoch. The default is ``False``.
+    collate_fn : Callable, optional
+        Merges a list of samples to form a mini-batch of Tensor(s). The
+        default is ``zip_and_collate``. You can read the code of
+        ``zip_and_collate`` and write your own collate function.
+    **other_kwargs_to_DataLoader :
+        Other keyword arguments to send to ``torch.utils.data.DataLoader``.
+        See https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader.
+
+    Returns
+    -------
+    data_iter : torch.utils.data.DataLoader
+        A ``DataLoader`` object. You can iterate over it to retrieve training
+        data, one batch (with size ``batch_size``) at a time.
+    """
+    token_IDs = transfomer_model_utils.tokenize_texts(texts, tokenizer)
+    data_and_labels = SequenceDataWithLabels(token_IDs, labels)
+    data_iter = torch.utils.data.DataLoader(
+        data_and_labels, batch_size=64, shuffle=False,
+        collate_fn=collate_fn, **other_kwargs_to_DataLoader,
+    )
+    return data_iter
+
+#%%----------------------------------------------------------------------------
+@typechecked
+def pack_texts_and_labels(
+        texts: Iterable[str],
+        labels: Iterable[int],
+        tokenizer: transformers.PreTrainedTokenizer,
+    ) -> Dict[str, Any]:
+
+    token_IDs = transfomer_model_utils.tokenize_texts(texts, tokenizer)
+    data_pack = pad_and_mask(token_IDs, labels=labels)
+    return data_pack
+
