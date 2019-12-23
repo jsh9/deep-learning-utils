@@ -1,12 +1,13 @@
-from typing import Iterable, Optional
+import torch
+import typeguard
 import transformers # https://github.com/huggingface/transformers
-from typeguard import typechecked
+
+from typing import List, Optional, Tuple
 
 #%%----------------------------------------------------------------------------
-@typechecked
 def get_model_and_tokenizer(
         model_type: str, pretrained_name: Optional[str] = None
-    ):
+) -> Tuple[torch.nn.Module, transformers.PreTrainedTokenizer]:
     """
     Get pre-trained transfomer model and tokenizer.
 
@@ -30,13 +31,16 @@ def get_model_and_tokenizer(
     ---------
     https://github.com/huggingface/transformers#online-demo
     """
+    typeguard.check_argument_types()
+
     model_pack = get_model_pack(model_type, pretrained_name)
     model = model_pack['model'].from_pretrained(model_pack['weights'])
     tokenizer = model_pack['tokenizer'].from_pretrained(model_pack['weights'])
+
+    typeguard.check_return_type((model, tokenizer))
     return model, tokenizer
 
 #%%----------------------------------------------------------------------------
-@typechecked
 def get_model_pack(model_type: str, pretrained_name: Optional[str] = None) -> dict:
     """
     Get the desired transformer "model pack".
@@ -57,6 +61,8 @@ def get_model_pack(model_type: str, pretrained_name: Optional[str] = None) -> di
         need to call `.from_pretrained()` on the values of "model" and
         "tokenizer" to get the actual model and the actual tokenizer.
     """
+    typeguard.check_argument_types()
+
     if model_type == "BERT":
         model_pack =  _build_dict(
             transformers.BertModel,
@@ -118,7 +124,8 @@ def get_model_pack(model_type: str, pretrained_name: Optional[str] = None) -> di
 
 #%%----------------------------------------------------------------------------
 def _get_default_pretrained_name(
-        model_type: str, pretrained_name: Optional[str]) -> str:
+        model_type: str, pretrained_name: Optional[str]
+) -> str:
     default_pretrained_name = {
         'BERT': 'bert-base-uncased',
         'DistilBERT': 'distilbert-base-uncased',
@@ -143,28 +150,64 @@ def _build_dict(transf_model, model_tokenizer, weights):
     return result
 
 #%%----------------------------------------------------------------------------
-@typechecked
 def tokenize_texts(
-        texts: Iterable[str],
-        tokenizer: transformers.PreTrainedTokenizer) -> Iterable[int]:
+        texts: List[str],
+        tokenizer: transformers.PreTrainedTokenizer
+) -> List[List[int]]:
     """
-    Tokenize a list of texts into a list of token IDs.
+    Tokenize a list of texts into their respective token IDs.
 
     Parameters
     ----------
-    texts : Iterable[str]
+    texts : List[str]
         List of texts to be tokenized.
     tokenizer : transformers.PreTrainedTokenizer
         The tokenizer to use.
 
     Returns
     -------
-    tokenized : Iterable[int]
+    tokenized : List[List[int]]
         The list of token IDs corresponding to each line of text.
     """
+    typeguard.check_argument_types()
 
     tokenized = []
     for text in texts:
         tokenized.append(tokenizer.encode(text, add_special_tokens=True))
     # END FOR
+
+    typeguard.check_return_type(tokenized)
+    return tokenized
+
+#%%----------------------------------------------------------------------------
+def tokenize_sentence_pairs(
+        list_of_sentence_pairs: List[Tuple[str, str]],
+        tokenizer: transformers.PreTrainedTokenizer
+) -> List[List[int]]:
+    """
+    Tokenize a list of text pairs into a their respective token IDs.
+
+    Parameters
+    ----------
+    list_of_sentence_pairs : List[Tuple[str, str]]
+        List of sentence pairs. For example, [('hello world', 'good morning')]
+    tokenizer : transformers.PreTrainedTokenizer
+        The tokenizer to use.
+
+    Returns
+    -------
+    tokenized :List[List[int]]
+        The list of token IDs corresponding to each sentence pair.
+    """
+    typeguard.check_argument_types()
+
+    tokenized = []
+    for sentence_1, sentence_2 in list_of_sentence_pairs:
+        this_tokenized = tokenizer.encode(
+            sentence_1, text_pair=sentence_2, add_special_tokens=True
+        )
+        tokenized.append(this_tokenized)
+    # END FOR
+
+    typeguard.check_return_type(tokenized)
     return tokenized

@@ -1,20 +1,20 @@
 import time
 import torch
-from typeguard import typechecked
+import typeguard
 from typing import Tuple, Dict, Optional, Any
 
 TensorTensorTensor = Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
 
 #%%----------------------------------------------------------------------------
-@typechecked
 def retrieve_X_y_masks(data: Dict) -> TensorTensorTensor:
+    typeguard.check_argument_types()
     X = data['padded_token_IDs']
     y = data['labels']
     masks = data['masks']
+    typeguard.check_return_type((X, y, masks))
     return X, y, masks
 
 #%%----------------------------------------------------------------------------
-@typechecked
 def train_transformer(
         train_iter: torch.utils.data.DataLoader,
         model: torch.nn.Module,
@@ -24,7 +24,7 @@ def train_transformer(
         device: str = "cpu",
         test_data: Optional[Dict[str, torch.Tensor]] = None,
         verbose_each_batch: bool = True,
-        verbose_each_epoch: bool = True):
+        verbose_each_epoch: bool = True) -> None:
     """
     Train a transformer-based model.
 
@@ -108,6 +108,8 @@ def train_transformer(
     Modified from:
     https://github.com/ShusenTang/Dive-into-DL-PyTorch/blob/25d5e050179d32310821cb9b6ea2a0905ab62e00/code/d2lzh_pytorch/utils.py#L696
     """
+    typeguard.check_argument_types()
+
     if test_data is not None:
         X_test = test_data['padded_token_IDs'].to(device)
         y_test = test_data['labels'].to(device)
@@ -172,7 +174,6 @@ def train_transformer(
     # END FOR
 
 #%%----------------------------------------------------------------------------
-@typechecked
 def train(
         train_iter: torch.utils.data.DataLoader,
         model: torch.nn.Module,
@@ -183,7 +184,7 @@ def train(
         other_args_to_model: Dict[str, Any] = dict(),
         test_data: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         verbose_each_batch: bool = True,
-        verbose_each_epoch: bool = True):
+        verbose_each_epoch: bool = True) -> None:
     """
     Train a generic PyTorch model.
 
@@ -263,6 +264,8 @@ def train(
     Modified from:
     https://github.com/ShusenTang/Dive-into-DL-PyTorch/blob/25d5e050179d32310821cb9b6ea2a0905ab62e00/code/d2lzh_pytorch/utils.py#L696
     """
+    typeguard.check_argument_types()
+
     if test_data is not None:
         X_test = test_data[0].to(device)
         y_test = test_data[1].to(device)
