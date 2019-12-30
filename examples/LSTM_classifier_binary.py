@@ -1,51 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-Multi-class classification using text CNN.
+Binary classification using LSTM.
 
-Data set: 20 news groups dataset
-
-(https://scikit-learn.org/stable/tutorial/text_analytics/working_with_text_data.html)
+Data set: IMDb sentiment, 2-class (SST-2)
 """
 import torch
 import torchtext
+import pandas as pd
 import deep_learning_utils as dlu
-from sklearn.datasets import fetch_20newsgroups
 
-#%%------------------- Load raw data ------------------------------------------
-# https://scikit-learn.org/stable/tutorial/text_analytics/working_with_text_data.html
-categories = ['alt.atheism', 'soc.religion.christian', 'comp.graphics', 'sci.med']
-twenty_train = fetch_20newsgroups(
-    subset='train',
-    categories=categories,
-    shuffle=True,
-    random_state=42
-)
+#%%-------------------- Load IMDB sentiment data ------------------------------
+print('Loading data... ', end='')
+path_train = './data/SST-2/train.tsv' # 6920 records in total
+path_test = './data/SST-2/test.tsv'  # 1821 records in total
+df_train = pd.read_csv(path_train, delimiter='\t', header=None)[:2000]
+df_test = pd.read_csv(path_test, delimiter='\t', header=None)[:400]
+print('done.')
 
-twenty_test = fetch_20newsgroups(
-    subset='test',
-    categories=categories,
-    shuffle=True,
-    random_state=42
-)
+#%%---------------- Prepare data ----------------------------------------------
+texts_train = list(df_train[0])
+labels_train = list(df_train[1])
 
-#%%-------------------- Preliminary data processing ---------------------------
-texts_train = twenty_train['data']
-labels_train = [int(label) for label in twenty_train['target']]
+texts_test = list(df_test[0])
+labels_test = list(df_test[1])
 
-texts_test = twenty_test['data']
-labels_test = [int(label) for label in twenty_test['target']]
-
-assert(isinstance(texts_train, list))
-assert(all([isinstance(text, str) for text in texts_train]))
-assert(isinstance(labels_train, list))
-assert(all([isinstance(label, int) for label in labels_train]))
-
-assert(isinstance(texts_test, list))
-assert(all([isinstance(text, str) for text in texts_test]))
-assert(isinstance(labels_test, list))
-assert(all([isinstance(label, int) for label in labels_test]))
-
-#%%
 ml = 40  # how many words in each sentence to use for training/testing
 
 tokenizer_train = dlu.data_utils.WordTokenizer(min_freq=5, max_length=ml)
@@ -67,17 +45,16 @@ test_data, _ = dlu.data_utils.create_text_data_pack(
 WORD_VECTOR_DIM = 100
 embedding_dim = WORD_VECTOR_DIM
 
-model = dlu.textCNN.TextCNNClassifier(
+model = dlu.lstmClf.LstmClassifier(
     vocab=vocab,
     embedding_dim=embedding_dim,
-    num_classes=len(categories)
 )
 
 glove_wordvec = torchtext.vocab.GloVe(name='6B', dim=WORD_VECTOR_DIM, cache='./glove')
 model.populate_embedding_layers_with_pretrained_word_vectors(glove_wordvec)
 
 #%%----------------- Training -------------------------------------------------
-lr, num_epochs = 0.005, 15
+lr, num_epochs = 0.01, 15
 optimizer = torch.optim.Adam(
     filter(lambda p: p.requires_grad, model.parameters()),
     lr=lr
@@ -95,7 +72,8 @@ dlu.train_test_utils.train(
     test_data=test_data,
     device=device,
     eval_test_accuracy=True,
-    eval_test_AUC=False
+    eval_test_AUC=True,
+    eval_each_batch=False
 )
 
 #%%--------------- Evaluate after training ------------------------------------
@@ -105,6 +83,9 @@ y_true_test = test_data['labels'].detach().numpy()
 y_pred_test_ = model(X_test)
 y_pred_class_test = torch.argmax(y_pred_test_, dim=1).detach().numpy()
 
-from sklearn.metrics import accuracy_score
+y_pred_probability = y_pred_test_.detach().numpy()[:, 1]  # prob. of the POS class
+
+from sklearn.metrics import accuracy_score, roc_auc_score
 
 print('Accuracy = %.3f' % accuracy_score(y_true_test, y_pred_class_test))
+print('AUC = %.3f' % roc_auc_score(y_true_test, y_pred_probability))

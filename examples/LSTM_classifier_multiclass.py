@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Multi-class classification using text CNN.
+Multi-class classification using LSTM.
 
 Data set: 20 news groups dataset
 
@@ -67,7 +67,7 @@ test_data, _ = dlu.data_utils.create_text_data_pack(
 WORD_VECTOR_DIM = 100
 embedding_dim = WORD_VECTOR_DIM
 
-model = dlu.textCNN.TextCNNClassifier(
+model = dlu.lstmClf.LstmClassifier(
     vocab=vocab,
     embedding_dim=embedding_dim,
     num_classes=len(categories)
@@ -77,7 +77,7 @@ glove_wordvec = torchtext.vocab.GloVe(name='6B', dim=WORD_VECTOR_DIM, cache='./g
 model.populate_embedding_layers_with_pretrained_word_vectors(glove_wordvec)
 
 #%%----------------- Training -------------------------------------------------
-lr, num_epochs = 0.005, 15
+lr, num_epochs = 0.005, 20
 optimizer = torch.optim.Adam(
     filter(lambda p: p.requires_grad, model.parameters()),
     lr=lr
@@ -108,3 +108,4 @@ y_pred_class_test = torch.argmax(y_pred_test_, dim=1).detach().numpy()
 from sklearn.metrics import accuracy_score
 
 print('Accuracy = %.3f' % accuracy_score(y_true_test, y_pred_class_test))
+

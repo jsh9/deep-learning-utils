@@ -45,7 +45,7 @@ test_data, _ = dlu.data_utils.create_text_data_pack(
 WORD_VECTOR_DIM = 100
 embedding_dim = WORD_VECTOR_DIM
 
-model = dlu.textCNN.TextCNN(
+model = dlu.textCNN.TextCNNClassifier(
     vocab=vocab,
     embedding_dim=embedding_dim,
 )
@@ -54,7 +54,7 @@ glove_wordvec = torchtext.vocab.GloVe(name='6B', dim=WORD_VECTOR_DIM, cache='./g
 model.populate_embedding_layers_with_pretrained_word_vectors(glove_wordvec)
 
 #%%----------------- Training -------------------------------------------------
-lr, num_epochs = 0.001, 5
+lr, num_epochs = 0.01, 10
 optimizer = torch.optim.Adam(
     filter(lambda p: p.requires_grad, model.parameters()),
     lr=lr

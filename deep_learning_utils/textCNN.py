@@ -14,7 +14,7 @@ import typeguard
 from .data_util_classes import FeatureLabelOptionPack
 
 #%%----------------------------------------------------------------------------
-class TextCNN(torch.nn.Module):
+class TextCNNClassifier(torch.nn.Module):
     def __init__(
             self, *,
             vocab: torchtext.vocab.Vocab,
