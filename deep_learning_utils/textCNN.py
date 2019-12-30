@@ -18,20 +18,27 @@ class TextCNN(torch.nn.Module):
     def __init__(
             self, *,
             vocab: torchtext.vocab.Vocab,
-            embed_size: int,
+            embedding_dim: int,
             kernel_sizes: List[int],
             num_channels: List[int],
+            dropout_prob: float = 0.5,
             num_classes: int = 2,
     ):
         typeguard.check_argument_types()
 
         super().__init__()
-        self.embedding = torch.nn.Embedding(len(vocab), embed_size)
+        self.vocab = vocab
+        self.embedding = torch.nn.Embedding(len(vocab), embedding_dim)
 
         # 不参与训练的嵌入层
-        self.constant_embedding = torch.nn.Embedding(len(vocab), embed_size)
-        self.dropout = torch.nn.Dropout(0.5)
+        self.constant_embedding = torch.nn.Embedding(len(vocab), embedding_dim)
+        self.dropout = torch.nn.Dropout(dropout_prob)
         self.decoder = torch.nn.Linear(sum(num_channels), num_classes)
+
+        if len(num_channels) != len(kernel_sizes):
+            msg = '`num_channels` and `kernel_sizes` must have the same length.'
+            raise ValueError(msg)
+        # END IF
 
         # 时序最大池化层没有权重，所以可以共用一个实例
         self.pool = GlobalMaxPool1d()
@@ -39,19 +46,29 @@ class TextCNN(torch.nn.Module):
         for c, k in zip(num_channels, kernel_sizes):
             self.convs.append(
                 torch.nn.Conv1d(
-                    in_channels = 2 * embed_size,
+                    in_channels = 2 * embedding_dim,
                     out_channels = c,
                     kernel_size = k
                 )
             )
         # END FOR
 
-    def forward(self, inputs):
+    def populate_embedding_layers_with_pretrained_word_vectors(
+            self, pretrained_wordvec: torchtext.vocab.Vectors
+    ):
+        embedding_matrix = load_pretrained_embedding(self.vocab.itos, pretrained_wordvec)
+        assert(embedding_matrix.shape == (len(self.vocab), pretrained_wordvec.dim))
+        self.embedding.weight.data.copy_(embedding_matrix)
+        self.constant_embedding.weight.data.copy_(embedding_matrix)
+        self.constant_embedding.weight.requires_grad = False
+
+    def forward(self, inputs: torch.Tensor):
         # 将两个形状是(批量大小, 词数, 词向量维度)的嵌入层的输出按词向量连结
         embeddings = torch.cat((
             self.embedding(inputs),
-            self.constant_embedding(inputs)), dim=2
-        ) # (batch, seq_len, 2 * embed_size)
+            self.constant_embedding(inputs)),
+            dim=2
+        )  # (batch, seq_len, 2 * embed_size)
 
         # 根据Conv1D要求的输入格式，将词向量维，即一维卷积层的通道维(即词向量那一维)，变换到前一维
         embeddings = embeddings.permute(0, 2, 1)
@@ -77,15 +94,15 @@ class GlobalMaxPool1d(torch.nn.Module):
 #%%----------------------------------------------------------------------------
 def load_pretrained_embedding(
         words: List[str],
-        pretrained_vocab: torchtext.vocab.Vectors
+        pretrained_wordvec: torchtext.vocab.Vectors
 ):
     """从预训练好的vocab中提取出words对应的词向量"""
-    embed = torch.zeros(len(words), pretrained_vocab.vectors[0].shape[0]) # 初始化为0
+    embed = torch.zeros(len(words), pretrained_wordvec.vectors[0].shape[0]) # 初始化为0
     num_out_of_vocab_words = 0
     for i, word in enumerate(words):
         try:
-            idx = pretrained_vocab.stoi[word]
-            embed[i, :] = pretrained_vocab.vectors[idx]
+            idx = pretrained_wordvec.stoi[word]
+            embed[i, :] = pretrained_wordvec.vectors[idx]
         except KeyError:
             num_out_of_vocab_words += 1
         # END TRY-EXCEPT

@@ -29,11 +29,11 @@ twenty_test = fetch_20newsgroups(
 )
 
 #%%-------------------- Preliminary data processing ---------------------------
-texts_train = twenty_train['data']
-labels_train = [int(label) for label in twenty_train['target']]
+texts_train = twenty_train['data'][:1000]
+labels_train = [int(label) for label in twenty_train['target']][:1000]
 
-texts_test = twenty_test['data']
-labels_test = [int(label) for label in twenty_test['target']]
+texts_test = twenty_test['data'][:300]
+labels_test = [int(label) for label in twenty_test['target']][:300]
 
 assert(isinstance(texts_train, list))
 assert(all([isinstance(text, str) for text in texts_train]))
@@ -65,24 +65,20 @@ test_data, _ = dlu.data_utils.create_text_data_pack(
 
 #%%--------------- Initialize text CNN model parameters -----------------------
 WORD_VECTOR_DIM = 100
-embed_size = WORD_VECTOR_DIM
+embedding_dim = WORD_VECTOR_DIM
 kernel_sizes = [3, 4, 5]
 num_channels = [100, 100, 100]
 
 model = dlu.textCNN.TextCNN(
     vocab=vocab,
-    embed_size=embed_size,
+    embedding_dim=embedding_dim,
     kernel_sizes=kernel_sizes,
     num_channels=num_channels,
     num_classes=len(categories)
 )
 
 glove_wordvec = torchtext.vocab.GloVe(name='6B', dim=WORD_VECTOR_DIM, cache='./glove')
-model.embedding.weight.data.copy_(
-    dlu.textCNN.load_pretrained_embedding(vocab.itos, glove_wordvec))
-model.constant_embedding.weight.data.copy_(
-    dlu.textCNN.load_pretrained_embedding(vocab.itos, glove_wordvec))
-model.constant_embedding.weight.requires_grad = False
+model.populate_embedding_layers_with_pretrained_word_vectors(glove_wordvec)
 
 #%%----------------- Training -------------------------------------------------
 lr, num_epochs = 0.005, 15
@@ -116,4 +112,3 @@ y_pred_class_test = torch.argmax(y_pred_test_, dim=1).detach().numpy()
 from sklearn.metrics import accuracy_score
 
 print('Accuracy = %.3f' % accuracy_score(y_true_test, y_pred_class_test))
-

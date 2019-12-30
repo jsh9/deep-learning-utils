@@ -13,7 +13,7 @@ import deep_learning_utils as dlu
 print('Loading data... ', end='')
 path_train = './data/SST-2/train.tsv' # 6920 records in total
 path_test = './data/SST-2/test.tsv'  # 1821 records in total
-df_train = pd.read_csv(path_train, delimiter='\t', header=None)[:1000]
+df_train = pd.read_csv(path_train, delimiter='\t', header=None)[:2000]
 df_test = pd.read_csv(path_test, delimiter='\t', header=None)[:400]
 print('done.')
 
@@ -43,23 +43,19 @@ test_data, _ = dlu.data_utils.create_text_data_pack(
 
 #%%--------------- Initialize text CNN model parameters -----------------------
 WORD_VECTOR_DIM = 100
-embed_size = WORD_VECTOR_DIM
+embedding_dim = WORD_VECTOR_DIM
 kernel_sizes = [3, 4, 5]
 num_channels = [100, 100, 100]
 
 model = dlu.textCNN.TextCNN(
     vocab=vocab,
-    embed_size=embed_size,
+    embedding_dim=embedding_dim,
     kernel_sizes=kernel_sizes,
     num_channels=num_channels
 )
 
 glove_wordvec = torchtext.vocab.GloVe(name='6B', dim=WORD_VECTOR_DIM, cache='./glove')
-model.embedding.weight.data.copy_(
-    dlu.textCNN.load_pretrained_embedding(vocab.itos, glove_wordvec))
-model.constant_embedding.weight.data.copy_(
-    dlu.textCNN.load_pretrained_embedding(vocab.itos, glove_wordvec))
-model.constant_embedding.weight.requires_grad = False
+model.populate_embedding_layers_with_pretrained_word_vectors(glove_wordvec)
 
 #%%----------------- Training -------------------------------------------------
 lr, num_epochs = 0.001, 5

@@ -35,6 +35,26 @@ def unpack_repack_data(data: Sequence[torch.Tensor]) -> FeatureLabelOptionPack:
 
 #%%----------------------------------------------------------------------------
 def unpack_training_data_for_transformer(data: Dict) -> FeatureLabelOptionPack:
+    """
+    Unpack ``data`` and then repack into a ``FeatureLabelOptionPack`` object
+    specifically for transformer models.
+
+    Parameters
+    ----------
+    data : Dict
+        The data to be unpacked and repackaged. It must be a dictionary that
+        has at least three keys: (1) "padded_token_IDs" that contains a PyTorch
+        tensor of the token IDs of each word of each sentence, (2) "labels"
+        that contains the labels of each sentence, and (3) "masks" that is
+        ia PyTorch tensor of 0 and 1 to indicate which positions in
+        "padded_token_IDs" are padded (useful for the attention mechanism
+        in the transformer models).
+
+    Returns
+    -------
+    flop : deep_learning_utils.data_util_classes.FeatureLabelOptionPack
+        The repackaged data.
+    """
     typeguard.check_argument_types()
     X = data['padded_token_IDs']
     y = data['labels']
@@ -324,9 +344,16 @@ def train(*,
             if test_data is not None:
                 if eval_each_batch:  # use the result of the most recent batch
                     test_loss_this_epoch = test_loss  # use the loss of last batch
-                    test_accuracy_this_epoch = test_accuracy
-                    test_AUC_this_epoch = test_AUC
-                    test_R2_this_epoch = test_R2
+
+                    if eval_test_accuracy:
+                        test_accuracy_this_epoch = test_accuracy
+                    # END IF
+                    if eval_test_AUC:
+                        test_AUC_this_epoch = test_AUC
+                    # END IF
+                    if eval_test_R2:
+                        test_R2_this_epoch = test_R2
+                    # END IF
                 else:  # otherwise, evaluate right here right now
                     y_pred_on_test = model(X_test, **options_test, **static_options_to_model)
                     test_loss_this_epoch = loss_fn(y_pred_on_test, y_test)
@@ -368,7 +395,7 @@ def train(*,
                 test_R2_txt_ = ''
             # END IF
 
-            time_txt_ = '(time %.1f sec)' % dt
+            time_txt_ = '(Time: %s)' % _seconds_to_hms(dt)
             txt_ = epoch_txt_ + train_loss_txt_ + test_loss_txt_ \
                  + test_accuracy_txt_ + test_AUC_txt_ + test_R2_txt_ + time_txt_
             print(txt_)
@@ -426,3 +453,15 @@ def _calc_R2(y_true: torch.Tensor, y_pred_raw: torch.Tensor) -> float:
 
     typeguard.check_return_type(R2)
     return R2
+
+#%%----------------------------------------------------------------------------
+def _seconds_to_hms(seconds: float) -> str:
+    if seconds <= 60:
+        return '%.1f sec' % seconds
+    # END IF
+
+    if seconds <= 3600:
+        return time.strftime('%M min, %s sec', time.gmtime(seconds))
+    # END IF
+
+    return time.strftime('%H hr, %M min, %S sec', time.gmtime(seconds))
