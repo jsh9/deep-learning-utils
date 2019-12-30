@@ -1,10 +1,62 @@
 import unittest
 
 import torch
+import torchtext
 import numpy as np
 from deep_learning_utils import data_utils
 
 class Test_Data_Utils(unittest.TestCase):
+    def test_WordTokenizer__letters_only(self):
+        texts = ['I go to school every day',
+                 'I like reading and studying math',
+                 'My school opens every day',
+                 'My reading and studying activities are satisfying']
+        tokenizer = data_utils.WordTokenizer(max_length=10, min_freq=2)
+        token_IDs, vocab = tokenizer.tokenize_texts(texts)
+
+        self.assertTrue(isinstance(vocab, torchtext.vocab.Vocab))
+
+        benchmark_token_IDs = [[5, 0, 0, 8, 4, 3, 1, 1, 1, 1],  # "1" means pad
+                               [5, 0, 7, 2, 9, 0, 1, 1, 1, 1],
+                               [6, 8, 0, 4, 3, 1, 1, 1, 1, 1],
+                               [6, 7, 2, 9, 0, 0, 0, 1, 1, 1]]
+        self.assertEqual(benchmark_token_IDs, token_IDs)
+
+    def test_WordTokenizer__numbers_and_special_char(self):
+        texts = ['I go to school every day',
+                 'I like reading and !studying math',  # add "!" before "studying"
+                 'My school opens every day',
+                 'My reading and studying2 activities are satisfying'] # "2" before "studying"
+        tokenizer = data_utils.WordTokenizer(max_length=10, min_freq=2)
+        token_IDs, vocab = tokenizer.tokenize_texts(texts)
+
+        self.assertTrue(isinstance(vocab, torchtext.vocab.Vocab))
+
+        benchmark_token_IDs = [[5, 0, 0, 8, 4, 3, 1, 1, 1, 1],  # "1" means pad
+                               [5, 0, 7, 2, 0, 0, 1, 1, 1, 1],
+                               [6, 8, 0, 4, 3, 1, 1, 1, 1, 1],
+                               [6, 7, 2, 0, 0, 0, 0, 1, 1, 1]]
+        self.assertEqual(benchmark_token_IDs, token_IDs)
+
+    def test_WordTokenizer__ignore_numbers_and_special_char(self):
+        texts = ['I go to school every day',
+                 'I like reading and !studying math',  # add "!" before "studying"
+                 'My school opens every day',
+                 'My reading and studying2 activities are satisfying'] # "2" before "studying"
+        tokenizer = data_utils.WordTokenizer(
+            max_length=10, min_freq=2,
+            ignore_numbers=True, ignore_special_char=True,
+        )
+        token_IDs, vocab = tokenizer.tokenize_texts(texts)
+
+        self.assertTrue(isinstance(vocab, torchtext.vocab.Vocab))
+
+        benchmark_token_IDs = [[5, 0, 0, 8, 4, 3, 1, 1, 1, 1],  # "1" means pad
+                               [5, 0, 7, 2, 9, 0, 1, 1, 1, 1],
+                               [6, 8, 0, 4, 3, 1, 1, 1, 1, 1],
+                               [6, 7, 2, 9, 0, 0, 0, 1, 1, 1]]
+        self.assertEqual(benchmark_token_IDs, token_IDs)
+
     def test_pad_and_mask__with_labels(self):
         X = [[1, 2, 3, 4, 5], [2, 3, 4, 5], [3, 4, 5]]
         y = [0, 1, 2]

@@ -6,8 +6,10 @@ from typing import List, Optional, Tuple
 
 #%%----------------------------------------------------------------------------
 def get_model_and_tokenizer(
-        model_type: str, pretrained_name: Optional[str] = None
-) -> Tuple[torch.nn.Module, transformers.PreTrainedTokenizer]:
+        model_type: str,
+        pretrained_name: Optional[str] = None,
+        verbose: bool = True,
+) -> Tuple[torch.nn.Module, transformers.tokenization_utils.PreTrainedTokenizer]:
     """
     Get pre-trained transfomer model and tokenizer.
 
@@ -19,6 +21,8 @@ def get_model_and_tokenizer(
         Pretrained model name. See https://huggingface.co/transformers/pretrained_models.html
         for all valid names. If ``None``, the basic pretrained model
         correponding to each model type will be used.
+    verbose : bool
+        Whether to show a message of the loading process.
 
     Returns
     -------
@@ -33,9 +37,17 @@ def get_model_and_tokenizer(
     """
     typeguard.check_argument_types()
 
+    if verbose:
+        print('Loading pretrained transformer model and tokenizer...')
+    # END IF
+
     model_pack = get_model_pack(model_type, pretrained_name)
     model = model_pack['model'].from_pretrained(model_pack['weights'])
     tokenizer = model_pack['tokenizer'].from_pretrained(model_pack['weights'])
+
+    if verbose:
+        print('   done.')
+    # END IF
 
     typeguard.check_return_type((model, tokenizer))
     return model, tokenizer
@@ -152,7 +164,9 @@ def _build_dict(transf_model, model_tokenizer, weights):
 #%%----------------------------------------------------------------------------
 def tokenize_texts(
         texts: List[str],
-        tokenizer: transformers.PreTrainedTokenizer
+        tokenizer: transformers.PreTrainedTokenizer,
+        *,
+        max_length: int = 512,
 ) -> List[List[int]]:
     """
     Tokenize a list of texts into their respective token IDs.
@@ -163,6 +177,10 @@ def tokenize_texts(
         List of texts to be tokenized.
     tokenizer : transformers.PreTrainedTokenizer
         The tokenizer to use.
+    max_length : int, optional
+        The maximum length (word count) to truncate each sentence of ``texts``
+        to. Sentences with fewer words than ``max_length`` won't be affected.
+        For example, you want to set this to 512 if you are using BERT models.
 
     Returns
     -------
@@ -173,7 +191,10 @@ def tokenize_texts(
 
     tokenized = []
     for text in texts:
-        tokenized.append(tokenizer.encode(text, add_special_tokens=True))
+        encoded_inputs = tokenizer.encode(
+            text, add_special_tokens=True, max_length=max_length,
+        )
+        tokenized.append(encoded_inputs)
     # END FOR
 
     typeguard.check_return_type(tokenized)

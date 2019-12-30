@@ -1,0 +1,1 @@
+Data downloaded from https://github.com/clairett/pytorch-sentiment-classification

@@ -16,8 +16,9 @@ setup(
     install_requires=['numpy>=1.11.0',
                       'scipy>=1.1.0',
                       'torch>=1.3.0',
-                      'torchvision>=0.4.1',
-                      'typeguard>=2.7.0'
+                      'torchtext>=0.4.0',
+                      'typeguard>=2.7.0',
+                      'matplotlib>=2.0.0',
     ],
     python_requires='>=3.6',
     include_package_data=True,
