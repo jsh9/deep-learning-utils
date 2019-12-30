@@ -104,8 +104,8 @@ def train(*,
     unpack_repack_fn : Callable[[Any], Dict[str, Any]]
         A function that unpacks each item in ``train_iter`` (or unpacks
         ``test_data``) and repackages the information into a
-        :py:class:~`deep_learning_utils.data_util_classes.FeatureLabelOptionPack`
-        object. An example function is :py:meth:~`unpack_repack_data`.
+        :py:class:`~deep_learning_utils.data_util_classes.FeatureLabelOptionPack`
+        object. An example function is :py:meth:`~unpack_repack_data`.
     static_options_to_model : Dict[str, Any]
         "Static" keyword arguments to pass to the ``model``'s ``forward()``
         method. "Static" means that these keyword arguments don't change in

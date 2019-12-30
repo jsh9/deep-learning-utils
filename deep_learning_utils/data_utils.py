@@ -7,7 +7,7 @@ import transformers
 
 from typing import List, Tuple, Dict, Optional, Any, Callable, Sequence, Union
 
-from . import transfomer_model_utils
+from . import transformer_model_utils
 from .data_util_classes import WordTokenizer, SequenceDataWithLabels
 
 #%%----------------------------------------------------------------------------
@@ -82,8 +82,8 @@ def pad_and_mask(
              "masks": masks,
              "labels": labels}
 
-    Reference
-    ---------
+    References
+    ----------
     https://jalammar.github.io/a-visual-guide-to-using-bert-for-the-first-time/
     """
     typeguard.check_argument_types()
@@ -157,9 +157,9 @@ def create_text_data_iter(
         Texts to train. For example: ``["Hello world", "Good morning"]``.
     labels : List[int]
         Labels of each sentence in ``texts``.
-    tokenizer : transformers.PreTrainedTokenizer or :py:class:`~WordTokenizer`
+    tokenizer : transformers.PreTrainedTokenizer or :py:class:`~deep_learning_utils.data_util_classes.WordTokenizer`
         The tokenizer to tokenize ``texts``. If ``None``, then use the methods
-        provided in :py:class:`~WordTokenizer`.
+        provided in :py:class:`~deep_learning_utils.data_util_classes.WordTokenizer`.
     max_length : int, optional
         The maximum length (word count) to truncate each sentence of ``texts``
         to. Sentences with fewer words than ``max_length`` won't be affected.
@@ -228,9 +228,9 @@ def create_text_data_pack(
         Texts to train. For example: ``["Hello world", "Good morning"]``.
     labels : List[int]
         Labels of each sentence in ``texts``.
-    tokenizer : transformers.PreTrainedTokenizer or :py:class:`~WordTokenizer`
+    tokenizer : transformers.PreTrainedTokenizer or :py:class:`~deep_learning_utils.data_util_classes.WordTokenizer`
         The tokenizer to tokenize ``texts``. If ``None``, then use the methods
-        provided in :py:class:`~WordTokenizer`.
+        provided in :py:class:`~deep_learning_utils.data_util_classes.WordTokenizer`.
     max_length : int, optional
         The maximum length (word count) to truncate each sentence of ``texts``
         to. Sentences with fewer words than ``max_length`` won't be affected.
@@ -279,7 +279,7 @@ def _create_data_with_labels_from_texts(
         max_length: int = 512,
 ):
     if isinstance(tokenizer, transformers.PreTrainedTokenizer):
-        token_IDs = transfomer_model_utils.tokenize_texts(
+        token_IDs = transformer_model_utils.tokenize_texts(
             texts, tokenizer, max_length=max_length
         )
         vocab = None

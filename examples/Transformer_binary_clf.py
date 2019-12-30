@@ -24,7 +24,7 @@ labels_train = list(df_train[1])
 texts_test = list(df_test[0])
 labels_test = list(df_test[1])
 
-model, tokenizer = dlu.transfomer_model_utils.get_model_and_tokenizer("DistilBERT")
+model, tokenizer = dlu.transformer_model_utils.get_model_and_tokenizer("DistilBERT")
 
 train_iter, _ = dlu.data_utils.create_text_data_iter(
     texts_train, labels_train, tokenizer, batch_size=64,

@@ -47,7 +47,7 @@ assert(isinstance(labels_test, list))
 assert(all([isinstance(label, int) for label in labels_test]))
 
 #%%---------------- Prepare data ----------------------------------------------
-model, tokenizer = dlu.transfomer_model_utils.get_model_and_tokenizer("DistilBERT")
+model, tokenizer = dlu.transformer_model_utils.get_model_and_tokenizer("DistilBERT")
 
 max_length = 40  # because BERT models don't take sentences longer than 512 words
 

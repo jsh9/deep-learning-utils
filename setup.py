@@ -19,6 +19,7 @@ setup(
                       'torchtext>=0.4.0',
                       'typeguard>=2.7.0',
                       'matplotlib>=2.0.0',
+                      'transformers>=2.3.0',
     ],
     python_requires='>=3.6',
     include_package_data=True,

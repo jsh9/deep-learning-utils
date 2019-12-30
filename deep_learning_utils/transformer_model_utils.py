@@ -31,8 +31,8 @@ def get_model_and_tokenizer(
     tokenizer :
         The pre-trained transformer tokenizer.
 
-    Reference
-    ---------
+    References
+    ----------
     https://github.com/huggingface/transformers#online-demo
     """
     typeguard.check_argument_types()

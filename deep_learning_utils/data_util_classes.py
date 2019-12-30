@@ -11,23 +11,73 @@ from . import data_utils
 
 #%%----------------------------------------------------------------------------
 class FeatureLabelOptionPack:
+    """
+    A "feature, label, and option" package.
+
+    Parameters
+    ----------
+    X : torch.Tensor
+        The features.
+    y : torch.Tensor
+        The labels.
+    options : Dict[str, Any]
+        The options to pass to the ``forward()`` method of a ``torch.nn.Module``
+        model.
+    """
     def __init__(self, *, X: torch.Tensor, y: torch.Tensor, options: Dict[str, Any]):
         typeguard.check_argument_types()
         self.X = X
         self.y = y
         self.options = options
 
-    def get_X(self, device: Union[str, torch.device] = 'cpu'):
+    def get_X(self, device: Union[str, torch.device] = 'cpu') -> torch.Tensor:
+        """
+        Retrieve ``X``.
+
+        Parameters
+        ----------
+        device : str or torch.device
+            Which device (CPU or GPU) to put the data to.
+
+        Returns
+        -------
+        X : torch.Tensor
+        """
         typeguard.check_argument_types()
         X = self.X.to(device)
         return X
 
-    def get_y(self, device: Union[str, torch.device] = 'cpu'):
+    def get_y(self, device: Union[str, torch.device] = 'cpu') -> torch.Tensor:
+        """
+        Retrieve ``y``.
+
+        Parameters
+        ----------
+        device : str or torch.device
+            Which device (CPU or GPU) to put the data to.
+
+        Returns
+        -------
+        y : torch.Tensor
+        """
         typeguard.check_argument_types()
         y = self.y.to(device)
         return y
 
-    def get_options(self, device: Union[str, torch.device] = 'cpu'):
+    def get_options(self, device: Union[str, torch.device] = 'cpu') -> dict:
+        """
+        Retrieve ``options``.
+
+        Parameters
+        ----------
+        device : str or torch.device
+            Which device (CPU or GPU) to put all the tensors of the contents
+            of ``options`` to. Non tensor data won't be affected.
+
+        Returns
+        -------
+        options : Dict[str, Any]
+        """
         typeguard.check_argument_types()
 
         options = self.options
@@ -144,7 +194,7 @@ class WordTokenizer:
         -------
         token_IDs : List[List[int]]
             The token IDs corresponding to each sentence.
-        vocab : TYPE
+        vocab : torchtext.vocab.Vocab
             The vocab object.
 
         Example
@@ -339,8 +389,8 @@ class WordTokenizer:
         Flatten texts such as [['hello', 'world'], ['good', 'morning']] into
         ['hello', 'world', 'good', 'morning']
 
-        Reference
-        ---------
+        References
+        ----------
         https://stackoverflow.com/a/952952
         """
         flattened = [item for sublist in texts for item in sublist]
