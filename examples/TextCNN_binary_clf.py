@@ -44,14 +44,10 @@ test_data, _ = dlu.data_utils.create_text_data_pack(
 #%%--------------- Initialize text CNN model parameters -----------------------
 WORD_VECTOR_DIM = 100
 embedding_dim = WORD_VECTOR_DIM
-kernel_sizes = [3, 4, 5]
-num_channels = [100, 100, 100]
 
 model = dlu.textCNN.TextCNN(
     vocab=vocab,
     embedding_dim=embedding_dim,
-    kernel_sizes=kernel_sizes,
-    num_channels=num_channels
 )
 
 glove_wordvec = torchtext.vocab.GloVe(name='6B', dim=WORD_VECTOR_DIM, cache='./glove')

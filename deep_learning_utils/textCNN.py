@@ -19,8 +19,8 @@ class TextCNN(torch.nn.Module):
             self, *,
             vocab: torchtext.vocab.Vocab,
             embedding_dim: int,
-            kernel_sizes: List[int],
-            num_channels: List[int],
+            kernel_sizes: List[int] = [3, 4, 5],
+            num_channels: List[int] = [100, 100, 100],
             dropout_prob: float = 0.5,
             num_classes: int = 2,
     ):
@@ -28,6 +28,7 @@ class TextCNN(torch.nn.Module):
 
         super().__init__()
         self.vocab = vocab
+        self.embedding_dim = embedding_dim
         self.embedding = torch.nn.Embedding(len(vocab), embedding_dim)
 
         # 不参与训练的嵌入层
@@ -56,8 +57,12 @@ class TextCNN(torch.nn.Module):
     def populate_embedding_layers_with_pretrained_word_vectors(
             self, pretrained_wordvec: torchtext.vocab.Vectors
     ):
+        if self.embedding_dim != pretrained_wordvec.dim:
+            msg = 'The dimension of `pretrained_wordvec` should equal `embedding_dim`.'
+            raise ValueError(msg)
+        # END IF
         embedding_matrix = load_pretrained_embedding(self.vocab.itos, pretrained_wordvec)
-        assert(embedding_matrix.shape == (len(self.vocab), pretrained_wordvec.dim))
+        assert(embedding_matrix.shape == (len(self.vocab), self.embedding_dim))
         self.embedding.weight.data.copy_(embedding_matrix)
         self.constant_embedding.weight.data.copy_(embedding_matrix)
         self.constant_embedding.weight.requires_grad = False
