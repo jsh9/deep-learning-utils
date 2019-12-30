@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='deep_learning_utils',
-    version='v0.0.2',
+    version='v0.1.0',
     description='deep-learning-utils',
     author='Jian Shi',
     license='GPL v3',
