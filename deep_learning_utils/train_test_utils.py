@@ -72,11 +72,12 @@ def train(*,
         device: Union[str, torch.device] = "cpu",
         unpack_repack_fn: Callable[[Any], FeatureLabelOptionPack] = unpack_repack_data,
         static_options_to_model: Dict[str, Any] = dict(),
-        test_data: Any = None,
+        test_iter: torch.utils.data.DataLoader = None,
         verbose: bool = True,
         verbose_each_batch: bool = True,
         verbose_each_epoch: bool = True,
-        eval_each_batch: bool = True,
+        eval_on_CPU: bool = False,
+        eval_each_batch: bool = False,
         eval_test_accuracy: bool = False,
         eval_test_AUC: bool = False,
         eval_test_R2: bool = False,
@@ -113,15 +114,18 @@ def train(*,
         a dictionary, whose keys are the argument names and values are argument
         values. It can be an empty dict, which means that no additional
         arguments will be passed to ``forward()``.
-    test_data : Any or ``None``
-        Test data to evaluate the model performance on. Its type should be
-        consistent with what comes out of each iteration of ``train_iter``.
+    test_iter : torch.utils.data.DataLoader or ``None``
+        Test data to evaluate the model performance on. If you do not want to
+        evaluate during training, you can pass in ``None``.
     verbose : bool
         Whether to show messages of progress on the console. Default = True.
     verbose_each_batch : bool
         Whether to print loss values at each batch. Default = True.
     verbose_each_epoch : bool
         Whether to print loss values at each epoch. Default = True.
+    eval_on_CPU : bool
+        Whether to perform model evauation (using ``test_iter``) on the CPU.
+        Set this to ``True`` if your GPU's memory is really limited.
     eval_each_batch : bool
         If ``True``, evaluate the model on the ``test_data`` at the end of
         every mini batch. Otherwise, only evaluate the model on the
@@ -190,12 +194,14 @@ def train(*,
 
         X_test = torch.rand(73, 9)
         y_test = torch.tensor(np.random.rand(73) > 0.5, dtype=int)
+        test_data = torch.utils.data.TensorDataset(X_test, y_test)
+        test_iter = torch.utils.data.DataLoader(test_data, batch_size=32, shuffle=False)
 
         loss_fn = torch.nn.CrossEntropyLoss()
 
-        dlu.train_test_utils.train(train_iter, model=clf, loss_fn=loss_fn,
+        dlu.train_test_utils.train(train_iter=train_iter, model=clf, loss_fn=loss_fn,
                                    optimizer=optimizer, num_epochs=20,
-                                   test_data=(X_test, y_test),
+                                   test_iter=test_iter,
                                    eval_test_accuracy=True, eval_test_AUC=True)
 
 
@@ -235,13 +241,16 @@ def train(*,
 
         X_test = torch.rand(73, 9)
         y_test = torch.rand(73, 1)
+        test_data = torch.utils.data.TensorDataset(X_test, y_test)
+        test_iter = torch.utils.data.DataLoader(test_data, batch_size=32, shuffle=False)
 
         loss_fn = torch.nn.MSELoss()
 
-        dlu.train_test_utils.train(train_iter, model=rgr, loss_fn=loss_fn,
+        dlu.train_test_utils.train(train_iter=train_iter, model=rgr, loss_fn=loss_fn,
                                    optimizer=optimizer, num_epochs=20,
-                                   test_data=(X_test, y_test),
+                                   test_iter=test_iter,
                                    eval_test_R2=True)
+
     """
     typeguard.check_argument_types()
 
@@ -252,13 +261,6 @@ def train(*,
     # END IF
 
     model = model.to(device)
-
-    if test_data is not None:
-        repackaged_test_data = unpack_repack_fn(test_data)
-        X_test = repackaged_test_data.get_X(device)
-        y_test = repackaged_test_data.get_y(device)
-        options_test = repackaged_test_data.get_options(device)  # dict
-    # END IF
 
     train_losses = []
     test_losses = []
@@ -286,52 +288,28 @@ def train(*,
 
             train_losses.append((batch_counter, loss.cpu().item()))
 
-            if test_data is not None and eval_each_batch:
-                y_pred_on_test = model(X_test, **options_test, **static_options_to_model)
-                test_loss = loss_fn(y_pred_on_test, y_test)
-
-                test_losses.append((batch_counter, test_loss.cpu().item()))
-
-                if eval_test_accuracy:
-                    test_accuracy = _calc_accuracy(y_test, y_pred_on_test)
-                # END IF
-                if eval_test_AUC:
-                    test_AUC = _calc_AUC(y_test, y_pred_on_test)
-                # END IF
-                if eval_test_R2:
-                    test_R2 = _calc_R2(y_test, y_pred_on_test)
-                # END IF
-
-                del y_pred_on_test  # free up memory
-            # END IF
+            if test_iter is not None and eval_each_batch:
+                test_scores, eval_txt = eval_model(
+                    model=model,
+                    test_iter=test_iter,
+                    loss_fn=loss_fn,
+                    unpack_repack_fn=unpack_repack_fn,
+                    static_options_to_model=static_options_to_model,
+                    training_device=device,
+                    eval_on_CPU=eval_on_CPU,
+                    eval_accuracy=eval_test_accuracy,
+                    eval_AUC=eval_test_AUC,
+                    eval_R2=eval_test_R2,
+                    verbose=False,
+                )
+                test_losses.append((batch_counter, test_scores['loss']))
+            else:
+                eval_txt = ''
+            # END IF-ELSE
 
             if verbose_each_batch:
                 train_loss_txt = 'Train loss: %.4f. ' % loss.item()
-                if test_data is not None and eval_each_batch:
-                    test_loss_txt = 'Test loss: %.4f. ' % test_loss.cpu().item()
-                    if eval_test_accuracy:
-                        test_accuracy_txt = 'Test accuracy: %.3f. ' % test_accuracy
-                    else:
-                        test_accuracy_txt = ''
-                    # END IF-ELSE
-                    if eval_test_AUC:
-                        test_AUC_txt = 'Test AUC: %.3f. ' % test_AUC
-                    else:
-                        test_AUC_txt = ''
-                    # END IF-ELSE
-                    if eval_test_R2:
-                        test_R2_txt = 'Test R2: %.3f. ' % test_R2
-                    else:
-                        test_R2_txt = ''
-                    # END IF-ELSE
-                else:
-                    test_loss_txt = ''
-                    test_accuracy_txt = ''
-                    test_AUC_txt = ''
-                    test_R2_txt = ''
-                # END IF
-                txt = train_loss_txt + test_loss_txt + test_accuracy_txt \
-                    + test_AUC_txt + test_R2_txt
+                txt = train_loss_txt + eval_txt
                 print(txt)
             # END IF
         # END FOR
@@ -341,63 +319,34 @@ def train(*,
             epoch_txt_ = '\nEpoch %d - ' % epoch
             train_loss_txt_ = 'Train loss: %.4f. ' % loss.cpu().item()
 
-            if test_data is not None:
-                if eval_each_batch:  # use the result of the most recent batch
-                    test_loss_this_epoch = test_loss  # use the loss of last batch
-
-                    if eval_test_accuracy:
-                        test_accuracy_this_epoch = test_accuracy
-                    # END IF
-                    if eval_test_AUC:
-                        test_AUC_this_epoch = test_AUC
-                    # END IF
-                    if eval_test_R2:
-                        test_R2_this_epoch = test_R2
-                    # END IF
-                else:  # otherwise, evaluate right here right now
-                    y_pred_on_test = model(X_test, **options_test, **static_options_to_model)
-                    test_loss_this_epoch = loss_fn(y_pred_on_test, y_test)
-                    test_losses.append((batch_counter, test_loss_this_epoch))
-
-                    if eval_test_accuracy:
-                        test_accuracy_this_epoch = _calc_accuracy(y_test, y_pred_on_test)
-                    # END IF
-                    if eval_test_AUC:
-                        test_AUC_this_epoch = _calc_AUC(y_test, y_pred_on_test)
-                    # END IF
-                    if eval_test_R2:
-                        test_R2_this_epoch = _calc_R2(y_test, y_pred_on_test)
-                    # END IF
-
-                    del y_pred_on_test  # free up memory
+            if test_iter is not None:
+                if eval_each_batch and verbose_each_batch:
+                    test_loss_this_epoch = test_scores['loss']
+                    eval_txt_this_epoch = eval_txt
+                else:  # otherwise, evaluate right here
+                    test_scores_this_epoch, eval_txt_this_epoch = eval_model(
+                        model=model,
+                        test_iter=test_iter,
+                        loss_fn=loss_fn,
+                        unpack_repack_fn=unpack_repack_fn,
+                        static_options_to_model=static_options_to_model,
+                        training_device=device,
+                        eval_on_CPU=eval_on_CPU,
+                        eval_accuracy=eval_test_accuracy,
+                        eval_AUC=eval_test_AUC,
+                        eval_R2=eval_test_R2,
+                        verbose=False,
+                    )
+                    test_loss_this_epoch = test_scores_this_epoch['loss']
                 # END IF
-
-                test_loss_txt_ = 'Test loss: %.4f. ' % test_loss_this_epoch
-                if eval_test_accuracy:
-                    test_accuracy_txt_ = 'Test accuracy: %.3f. ' % test_accuracy_this_epoch
-                else:
-                    test_accuracy_txt_ = ''
-                # END IF-ELSE
-                if eval_test_AUC:
-                    test_AUC_txt_ = 'Test AUC: %.3f. ' % test_AUC_this_epoch
-                else:
-                    test_AUC_txt_ = ''
-                # END IF-ELSE
-                if eval_test_R2:
-                    test_R2_txt_ = 'Test R2: %.3f. ' % test_R2_this_epoch
-                else:
-                    test_R2_txt_ = ''
-                # END IF-ELSE
             else:
-                test_loss_txt_ = ''
-                test_accuracy_txt_ = ''
-                test_AUC_txt_ = ''
-                test_R2_txt_ = ''
+                eval_txt_this_epoch = ''
             # END IF
 
+            test_losses.append((batch_counter, test_loss_this_epoch))
+
             time_txt_ = '(Time: %s)' % _seconds_to_hms(dt)
-            txt_ = epoch_txt_ + train_loss_txt_ + test_loss_txt_ \
-                 + test_accuracy_txt_ + test_AUC_txt_ + test_R2_txt_ + time_txt_
+            txt_ = epoch_txt_ + train_loss_txt_ + eval_txt_this_epoch + time_txt_
             print(txt_)
         # END IF
         if verbose_each_epoch and verbose_each_batch:
@@ -415,7 +364,125 @@ def train(*,
         plt.xlabel('Training step')
         plt.ylabel('Loss')
         plt.legend(loc='best')
+        plt.show()
     # END IF
+
+#%%----------------------------------------------------------------------------
+def eval_model(
+        *,
+        model: torch.nn.Module,
+        test_iter: torch.utils.data.DataLoader,
+        loss_fn: torch.nn.modules.loss._Loss,
+        unpack_repack_fn: Callable[[Any], FeatureLabelOptionPack],
+        static_options_to_model: Dict[str, Any],
+        training_device: Union[str, torch.device],
+        eval_on_CPU: bool,
+        eval_accuracy: bool,
+        eval_AUC: bool,
+        eval_R2: bool,
+        verbose: bool,
+) -> Tuple[Dict[str, Union[float, None]], str]:
+    """
+    Evaluate model performance.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Model object.
+    test_iter : torch.utils.data.DataLoader
+        Test data iteration.
+    loss_fn : torch.nn.modules.loss._Loss
+        Loss function.
+    unpack_repack_fn : Callable[[Any], FeatureLabelOptionPack]
+        A function that unpacks each item in ``train_iter`` (or unpacks
+        ``test_data``) and repackages the information into a
+        :py:class:`~deep_learning_utils.data_util_classes.FeatureLabelOptionPack`
+        object. An example function is :py:meth:`~unpack_repack_data`.
+    static_options_to_model : Dict[str, Any]
+        "Static" keyword arguments to pass to the ``model``'s ``forward()``
+        method. "Static" means that these keyword arguments don't change in
+        different mini batches or different epochs. You need to pack them into
+        a dictionary, whose keys are the argument names and values are argument
+        values. It can be an empty dict, which means that no additional
+        arguments will be passed to ``forward()``.
+    training_device : Union[str, torch.device]
+        The device to train the model. This parameter is needed because we
+        often need to keep training the model after evaluation, so we need to
+        send the model back to training device.
+    eval_on_CPU : bool
+        Whether to perform model evauation (using ``test_iter``) on the CPU.
+        Set this to ``True`` if your GPU's memory is really limited.
+    eval_accuracy : bool
+        Whether to evaluate accuracy. Suitable for classification problem.
+    eval_AUC : bool
+        Whether to evaluate AUC. Suitable for binary classification only.
+    eval_R2 : bool
+        Whether to evaluate R2 (coefficient of determination). Suitable for
+        regression problem only.
+    verbose : bool
+        Whether to show the loss/scores on the console.
+
+    Returns
+    -------
+    test_scores : Dict[str, Union[float, None]]
+        The test scores. A dictionary of keys "loss", "accuracy", "AUC", and
+        "R2". The values are either floats or None.
+    eval_txt : str
+        The text that looks like "Test loss: ***. Test accuracy: ***".
+    """
+    typeguard.check_argument_types()
+
+    eval_device = "cpu" if eval_on_CPU else training_device
+
+    y_pred_on_test_list = []
+    y_test_list = []
+
+    for test_data in test_iter:
+        repackaged_test_data = unpack_repack_fn(test_data)
+        X_test_this_iter = repackaged_test_data.get_X(eval_device)
+        y_test_this_iter = repackaged_test_data.get_y(eval_device)
+        options_to_model = repackaged_test_data.get_options(eval_device)
+
+        model.to(eval_device)  # in-place
+        y_pred_on_test_this_iter = model(
+            X_test_this_iter,
+            **options_to_model,
+            **static_options_to_model
+        ).detach()  # detach to save RAM
+
+        y_pred_on_test_list.append(y_pred_on_test_this_iter)
+        y_test_list.append(y_test_this_iter)
+    # END FOR
+
+    y_pred_on_test = torch.cat(y_pred_on_test_list)
+    y_test = torch.cat(y_test_list)
+
+    test_loss = loss_fn(y_pred_on_test, y_test).cpu().item()
+
+    acc = _calc_accuracy(y_test, y_pred_on_test) if eval_accuracy else None
+    AUC = _calc_AUC(y_test, y_pred_on_test) if eval_AUC else None
+    R2 = _calc_R2(y_test, y_pred_on_test) if eval_R2 else None
+
+    del y_pred_on_test  # save RAM
+
+    loss_txt = 'Test loss: %.4f. ' % test_loss
+    acc_txt = 'Test accuracy: %.3f. ' % acc if eval_accuracy else ''
+    AUC_txt = 'Test AUC: %.3f. ' % AUC if eval_AUC else ''
+    R2_txt = 'Test R2: %.3f. ' % R2 if eval_R2 else ''
+    eval_txt = loss_txt + acc_txt + AUC_txt + R2_txt
+
+    if verbose:
+        print(eval_txt)
+    # END IF-ELSE
+
+    model.to(training_device)  # move back to the device for training
+
+    test_scores = {'loss': test_loss,
+                   'accuracy': acc,
+                   'AUC': AUC,
+                   'R2': R2}
+
+    return test_scores, eval_txt
 
 #%%----------------------------------------------------------------------------
 def _calc_accuracy(y_true: torch.Tensor, y_pred_raw: torch.Tensor) -> float:
@@ -461,7 +528,7 @@ def _seconds_to_hms(seconds: float) -> str:
     # END IF
 
     if seconds <= 3600:
-        return time.strftime('%M min, %s sec', time.gmtime(seconds))
+        return time.strftime('%M min, %S sec', time.gmtime(seconds))
     # END IF
 
     return time.strftime('%H hr, %M min, %S sec', time.gmtime(seconds))

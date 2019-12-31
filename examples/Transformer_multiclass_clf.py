@@ -14,14 +14,14 @@ from sklearn.datasets import fetch_20newsgroups
 #%%------------------- Load raw data ------------------------------------------
 # https://scikit-learn.org/stable/tutorial/text_analytics/working_with_text_data.html
 categories = ['alt.atheism', 'soc.religion.christian', 'comp.graphics', 'sci.med']
-twenty_train = fetch_20newsgroups(
+twenty_train = fetch_20newsgroups(  # 2257 records in total
     subset='train',
     categories=categories,
     shuffle=True,
     random_state=42
 )
 
-twenty_test = fetch_20newsgroups(
+twenty_test = fetch_20newsgroups(  # 1502 records in total
     subset='test',
     categories=categories,
     shuffle=True,
@@ -29,12 +29,12 @@ twenty_test = fetch_20newsgroups(
 )
 
 #%%-------------------- Preliminary data processing ---------------------------
-n = 200  # use just a small data set for training
-texts_train = twenty_train['data'][:n]
-labels_train = [int(label) for label in twenty_train['target']][:n]
+n = 1500  # use just a small data set for training
+texts_train = twenty_train['data']#[:n]
+labels_train = [int(label) for label in twenty_train['target']]#[:n]
 
-texts_test = twenty_test['data'][:600]
-labels_test = [int(label) for label in twenty_test['target']][:600]
+texts_test = twenty_test['data']
+labels_test = [int(label) for label in twenty_test['target']]
 
 assert(isinstance(texts_train, list))
 assert(all([isinstance(text, str) for text in texts_train]))
@@ -55,8 +55,8 @@ train_iter, _ = dlu.data_utils.create_text_data_iter(
     texts_train, labels_train, tokenizer, batch_size=64, max_length=max_length,
 )
 
-test_data, _ = dlu.data_utils.create_text_data_pack(
-    texts_test, labels_test, tokenizer, max_length=max_length,
+test_iter, _ = dlu.data_utils.create_text_data_iter(
+    texts_test, labels_test, tokenizer, batch_size=64, max_length=max_length,
 )
 
 NUM_CLASSES = len(categories)
@@ -67,9 +67,9 @@ class TextClassifier(torch.nn.Module):
         super().__init__()
         self.transformer = transformer
         self.classifier = torch.nn.Sequential(
-            torch.nn.Linear(list(transformer.parameters())[-1].numel(), 256),
-            torch.nn.Dropout(0.2),
-            torch.nn.Linear(256, NUM_CLASSES)
+            torch.nn.Linear(list(transformer.parameters())[-1].numel(), 512),
+            torch.nn.Dropout(0.5),
+            torch.nn.Linear(512, NUM_CLASSES)
         )
 
     def forward(self, token_IDs, attention_mask):
@@ -85,32 +85,38 @@ optimizer = transformers.AdamW(
      {"params": clf.classifier.parameters(), "lr": 1e-3}]
 )
 
-device = 'cpu'#torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 #%%--------------- Training ---------------------------------------------------
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+loss_fn = torch.nn.CrossEntropyLoss()
+unpack_repack_fn = dlu.train_test_utils.unpack_training_data_for_transformer
+
 dlu.train_test_utils.train(
     train_iter=train_iter,
     model=clf,
-    unpack_repack_fn=dlu.train_test_utils.unpack_training_data_for_transformer,
-    loss_fn=torch.nn.CrossEntropyLoss(),
+    unpack_repack_fn=unpack_repack_fn,
+    loss_fn=loss_fn,
     optimizer=optimizer,
     device=device,
-    num_epochs=5,
-    test_data=None,  # don't evaluate during training (to save time and RAM)
+    num_epochs=3,
+    test_iter=test_iter,
+    eval_each_batch=False,  # in order to save time
     verbose_each_batch=True,
     eval_test_accuracy=True,
     eval_test_AUC=False,
+    eval_on_CPU=False,
 )
 
-#%%---------------- Evaluation ------------------------------------------------
-model.to('cpu')
-X_test = test_data['padded_token_IDs'].to("cpu")
-y_true_test = test_data['labels'].detach().numpy()
-masks = test_data['masks']
-
-y_pred_test_ = clf(X_test, attention_mask=masks)
-y_pred_class_test = torch.argmax(y_pred_test_, dim=1).detach().numpy()
-
-from sklearn.metrics import accuracy_score
-
-print('Accuracy = %.3f' % accuracy_score(y_true_test, y_pred_class_test))
+#%%--------------- Evaluate after training ------------------------------------
+test_scores, eval_txt = dlu.train_test_utils.eval_model(
+    model=clf,
+    test_iter=test_iter,
+    loss_fn=loss_fn,
+    unpack_repack_fn=unpack_repack_fn,
+    static_options_to_model=dict(),
+    training_device=device,
+    eval_on_CPU=False,
+    eval_accuracy=True,
+    eval_AUC=False,
+    eval_R2=False,
+    verbose=True
+)

@@ -13,8 +13,8 @@ import deep_learning_utils as dlu
 print('Loading data... ', end='')
 path_train = './data/SST-2/train.tsv' # 6920 records in total
 path_test = './data/SST-2/test.tsv'  # 1821 records in total
-df_train = pd.read_csv(path_train, delimiter='\t', header=None)[:400]
-df_test = pd.read_csv(path_test, delimiter='\t', header=None)[:500]
+df_train = pd.read_csv(path_train, delimiter='\t', header=None)[:1000]
+df_test = pd.read_csv(path_test, delimiter='\t', header=None)
 print('done.')
 
 #%%---------------- Prepare data ----------------------------------------------
@@ -30,7 +30,9 @@ train_iter, _ = dlu.data_utils.create_text_data_iter(
     texts_train, labels_train, tokenizer, batch_size=64,
 )
 
-test_data, _ = dlu.data_utils.create_text_data_pack(texts_test, labels_test, tokenizer)
+test_iter, _ = dlu.data_utils.create_text_data_iter(
+    texts_test, labels_test, tokenizer, batch_size=32,
+)
 
 NUM_CLASSES = len(set(labels_train))
 
@@ -58,20 +60,38 @@ optimizer = transformers.AdamW(
      {"params": clf.classifier.parameters(), "lr": 1e-3}]
 )
 
-device = 'cpu'#torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#%%----------------- Training -------------------------------------------------
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+loss_fn = torch.nn.CrossEntropyLoss()
+unpack_repack_fn = dlu.train_test_utils.unpack_training_data_for_transformer
 
-#%%
 dlu.train_test_utils.train(
     train_iter=train_iter,
     model=clf,
-    unpack_repack_fn=dlu.train_test_utils.unpack_training_data_for_transformer,
-    loss_fn=torch.nn.CrossEntropyLoss(),
+    unpack_repack_fn=unpack_repack_fn,
+    loss_fn=loss_fn,
     optimizer=optimizer,
     device=device,
-    num_epochs=6,
-    test_data=test_data,
-    eval_each_batch=False,  # in order to save time and RAM
+    num_epochs=4,
+    test_iter=test_iter,
+    eval_each_batch=False,  # in order to save time
     verbose_each_batch=True,
     eval_test_accuracy=True,
-    eval_test_AUC=True
+    eval_test_AUC=True,
+    eval_on_CPU=False,
+)
+
+#%%--------------- Evaluate after training ------------------------------------
+test_scores, eval_txt = dlu.train_test_utils.eval_model(
+    model=clf,
+    test_iter=test_iter,
+    loss_fn=loss_fn,
+    unpack_repack_fn=unpack_repack_fn,
+    static_options_to_model=dict(),
+    training_device=device,
+    eval_on_CPU=False,
+    eval_accuracy=True,
+    eval_AUC=True,
+    eval_R2=False,
+    verbose=True
 )

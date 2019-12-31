@@ -210,68 +210,6 @@ def create_text_data_iter(
     return data_iter, vocab
 
 #%%----------------------------------------------------------------------------
-def create_text_data_pack(
-        texts: Sequence[str],
-        labels: Sequence[int],
-        tokenizer: Union[transformers.PreTrainedTokenizer, WordTokenizer],
-        *,
-        max_length: int = 512,
-        collate_fn: Callable = zip_and_collate,
-        verbose: bool = True,
-) -> Tuple[Any, Optional[torchtext.vocab.Vocab]]:
-    """
-    Create a data iteration object to do training.
-
-    Parameters
-    ----------
-    texts : List[str]
-        Texts to train. For example: ``["Hello world", "Good morning"]``.
-    labels : List[int]
-        Labels of each sentence in ``texts``.
-    tokenizer : transformers.PreTrainedTokenizer or :py:class:`~deep_learning_utils.data_util_classes.WordTokenizer`
-        The tokenizer to tokenize ``texts``. If ``None``, then use the methods
-        provided in :py:class:`~deep_learning_utils.data_util_classes.WordTokenizer`.
-    max_length : int, optional
-        The maximum length (word count) to truncate each sentence of ``texts``
-        to. Sentences with fewer words than ``max_length`` won't be affected.
-        For example, you want to set this to 512 if you are creating a data
-        pack for BERT models.
-    collate_fn : Callable, optional
-        Merges a list of samples to form a "pack". The
-        default is ``zip_and_collate``. You can read the code of
-        ``zip_and_collate`` and write your own collate function.
-    verbose : bool
-        Whether to show a message of progress on the console.
-
-    Returns
-    -------
-    data_pack : Any
-        The packed data. Its data type depends on what collate function is
-        used.
-    vocab : torchtext.vocab.Vocab or ``None``
-        The vocab object generated from ``texts``. It will be ``None`` if
-        ``tokenizer`` is the pre-trained tokenizer from the "transformers"
-        library.
-    """
-    typeguard.check_argument_types()
-
-    if verbose:
-        print('Creating a data pack from texts and labels... ')
-    # END IF
-
-    data_and_labels, vocab = _create_data_with_labels_from_texts(
-        texts, labels, tokenizer, max_length=max_length,
-    )
-    assert(isinstance(data_and_labels, SequenceDataWithLabels))
-    data_pack = collate_fn(data_and_labels.data_with_labels)
-
-    if verbose:
-        print('Done.')
-    # END IF
-
-    return data_pack, vocab
-
-#%%----------------------------------------------------------------------------
 def _create_data_with_labels_from_texts(
         texts: Sequence[str],
         labels: Sequence[int],

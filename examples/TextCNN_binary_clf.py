@@ -13,8 +13,8 @@ import deep_learning_utils as dlu
 print('Loading data... ', end='')
 path_train = './data/SST-2/train.tsv' # 6920 records in total
 path_test = './data/SST-2/test.tsv'  # 1821 records in total
-df_train = pd.read_csv(path_train, delimiter='\t', header=None)[:2000]
-df_test = pd.read_csv(path_test, delimiter='\t', header=None)[:400]
+df_train = pd.read_csv(path_train, delimiter='\t', header=None)
+df_test = pd.read_csv(path_test, delimiter='\t', header=None)
 print('done.')
 
 #%%---------------- Prepare data ----------------------------------------------
@@ -31,14 +31,15 @@ train_iter, vocab = dlu.data_utils.create_text_data_iter(
     texts_train,
     labels_train,
     tokenizer_train,
-    batch_size=256,
+    batch_size=128,
 )
 
 tokenizer_test = dlu.data_utils.WordTokenizer(existing_vocab=vocab, max_length=ml)
-test_data, _ = dlu.data_utils.create_text_data_pack(
+test_iter, _ = dlu.data_utils.create_text_data_iter(
     texts_test,
     labels_test,
     tokenizer_test,
+    batch_size=128,
 )
 
 #%%--------------- Initialize text CNN model parameters -----------------------
@@ -54,12 +55,13 @@ glove_wordvec = torchtext.vocab.GloVe(name='6B', dim=WORD_VECTOR_DIM, cache='./g
 model.populate_embedding_layers_with_pretrained_word_vectors(glove_wordvec)
 
 #%%----------------- Training -------------------------------------------------
-lr, num_epochs = 0.01, 10
+lr, num_epochs = 0.01, 4#10
 optimizer = torch.optim.Adam(
     filter(lambda p: p.requires_grad, model.parameters()),
     lr=lr
 )
 loss_fn = torch.nn.CrossEntropyLoss()
+unpack_repack_fn = dlu.textCNN.unpack_data_for_textCNN
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 dlu.train_test_utils.train(
@@ -68,24 +70,25 @@ dlu.train_test_utils.train(
     loss_fn=loss_fn,
     optimizer=optimizer,
     num_epochs=num_epochs,
-    unpack_repack_fn=dlu.textCNN.unpack_data_for_textCNN,
-    test_data=test_data,
+    unpack_repack_fn=unpack_repack_fn,
+    test_iter=test_iter,
     device=device,
     eval_test_accuracy=True,
     eval_test_AUC=True,
-    eval_each_batch=False
+    eval_each_batch=False,
 )
 
 #%%--------------- Evaluate after training ------------------------------------
-model.to('cpu')
-X_test = test_data['padded_token_IDs'].to("cpu")
-y_true_test = test_data['labels'].detach().numpy()
-y_pred_test_ = model(X_test)
-y_pred_class_test = torch.argmax(y_pred_test_, dim=1).detach().numpy()
-
-y_pred_probability = y_pred_test_.detach().numpy()[:, 1]  # prob. of the POS class
-
-from sklearn.metrics import accuracy_score, roc_auc_score
-
-print('Accuracy = %.3f' % accuracy_score(y_true_test, y_pred_class_test))
-print('AUC = %.3f' % roc_auc_score(y_true_test, y_pred_probability))
+test_scores, eval_txt = dlu.train_test_utils.eval_model(
+    model=model,
+    test_iter=test_iter,
+    loss_fn=loss_fn,
+    unpack_repack_fn=unpack_repack_fn,
+    static_options_to_model=dict(),
+    training_device=device,
+    eval_on_CPU=False,
+    eval_accuracy=True,
+    eval_AUC=True,
+    eval_R2=False,
+    verbose=True
+)
