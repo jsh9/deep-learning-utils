@@ -1,4 +1,4 @@
-__version__ = 'v0.1.1'
+__version__ = 'v0.1.2'
 
 from . import data_utils as data_utils
 from . import train_test_utils as train_test_utils
