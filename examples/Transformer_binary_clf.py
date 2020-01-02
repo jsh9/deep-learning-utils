@@ -27,11 +27,11 @@ labels_test = list(df_test[1])
 model, tokenizer = dlu.transformer_model_utils.get_model_and_tokenizer("DistilBERT")
 
 train_iter, _ = dlu.data_utils.create_text_data_iter(
-    texts_train, labels_train, tokenizer, batch_size=64,
+    texts_train, labels_train, tokenizer, batch_size=32, max_length=40,
 )
 
 test_iter, _ = dlu.data_utils.create_text_data_iter(
-    texts_test, labels_test, tokenizer, batch_size=32,
+    texts_test, labels_test, tokenizer, batch_size=32, max_length=40,
 )
 
 NUM_CLASSES = len(set(labels_train))
@@ -41,10 +41,14 @@ class TextClassifier(torch.nn.Module):
     def __init__(self, transformer):
         super().__init__()
         self.transformer = transformer
+        embedding_size = list(transformer.parameters())[-1].numel()
+
+        # Similar to https://github.com/huggingface/transformers/blob/629b22adcfe340c4e3babac83654da2fbd1bbf89/src/transformers/modeling_distilbert.py#L617
         self.classifier = torch.nn.Sequential(
-            torch.nn.Linear(list(transformer.parameters())[-1].numel(), 256),
-            torch.nn.Dropout(0.2),
-            torch.nn.Linear(256, NUM_CLASSES)
+            torch.nn.Linear(embedding_size, embedding_size),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.4),
+            torch.nn.Linear(embedding_size, NUM_CLASSES)
         )
 
     def forward(self, token_IDs, attention_mask):
